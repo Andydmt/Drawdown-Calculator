@@ -14,18 +14,18 @@
             color: #333;
         }
         label {
-            margin-top: -10px;
+            margin-top: 10px;
             display: block;
             color: #666;
         }
         input, select, button {
-            width: 30%;
+            width: 100%;
             padding: 8px;
             margin-top: 5px;
             margin-bottom: 20px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            box-sizing: border-box; /* Ensures padding does not affect width */
+            box-sizing: border-box;
         }
         button {
             background-color: #007bff;
@@ -52,33 +52,33 @@
 </head>
 <body>
     <h2>Retirement Drawdown Calculator</h2>
-    
+
     <label for="currency">Currency Symbol:</label>
     <select id="currency">
         <option value="$">$ (USD)</option>
         <option value="£">£ (GBP)</option>
         <option value="€">€ (EUR)</option>
-    </select><br><br>
+    </select><br>
 
     <label for="totalInvestment">Total Investment Value:</label>
-    <input type="number" id="totalInvestment" value="100000"><br><br>
-    
+    <input type="number" id="totalInvestment" value="100000"><br>
+
     <label for="drawdownType">Drawdown Type:</label>
     <select id="drawdownType" onchange="toggleDrawdownInput()">
         <option value="percentage">Percentage</option>
         <option value="fixed">Fixed Amount</option>
-    </select><br><br>
-    
+    </select><br>
+
     <div id="percentageInput">
         <label for="drawdownPercentage">Annual Drawdown Percentage (%):</label>
-        <input type="number" id="drawdownPercentage" value="4"><br><br>
+        <input type="number" id="drawdownPercentage" value="4"><br>
     </div>
-    
+
     <div id="fixedAmountInput" style="display:none;">
         <label for="annualWithdrawal">Annual Withdrawal Amount:</label>
-        <input type="number" id="annualWithdrawal"><br><br>
+        <input type="number" id="annualWithdrawal"><br>
     </div>
-    
+
     <label for="portfolio">Portfolio (Equity/Bond split):</label>
     <select id="portfolio" onchange="adjustReturnRate()">
         <option value="0.0726">100/0</option>
@@ -87,20 +87,35 @@
         <option value="0.0558">40/60</option>
         <option value="0.0473">20/80</option>
         <option value="0.0373">0/100</option>
-    </select><br><br>
-    
+    </select><br>
+
     <label for="expectedReturn">Expected Annual Return (%):</label>
-    <input type="number" id="expectedReturn" value="7.26"><br><br>
-    
+    <input type="number" id="expectedReturn" value="7.26"><br>
+
+    <label for="inflation">Inflation (%):</label>
+    <input type="number" id="inflation" value="2.83"><br>
+
+    <label for="feeType">Account Fee Type:</label>
+    <select id="feeType">
+        <option value="percentage">Percentage</option>
+        <option value="flat">Flat Fee</option>
+    </select><br>
+
+    <label for="accountFee">Annual Account Fee:</label>
+    <input type="number" id="accountFee" value="1"><br>
+
+    <label for="ongoingCharge">Annual Ongoing Charge (%):</label>
+    <input type="number" id="ongoingCharge" value="0.5"><br>
+
     <label for="retirementYears">Retirement Duration (Years):</label>
-    <input type="number" id="retirementYears" value="25"><br><br>
-    
+    <input type="number" id="retirementYears" value="25"><br>
+
     <button onclick="calculateDrawdown()">Calculate Drawdown</button>
-    
+
     <h3 id="result"></h3>
-    
+
     <canvas id="drawdownChart" width="400" height="200"></canvas>
-    
+
     <script>
         function toggleDrawdownInput() {
             const drawdownType = document.getElementById('drawdownType').value;
@@ -120,29 +135,54 @@
             const drawdownPercentage = parseFloat(document.getElementById('drawdownPercentage').value) / 100;
             const annualWithdrawal = parseFloat(document.getElementById('annualWithdrawal').value || '0');
             const expectedReturn = parseFloat(document.getElementById('expectedReturn').value) / 100;
+            const inflationRate = parseFloat(document.getElementById('inflation').value) / 100;
             const retirementYears = parseInt(document.getElementById('retirementYears').value);
+            const feeType = document.getElementById('feeType').value;
+            const accountFee = parseFloat(document.getElementById('accountFee').value);
+            const ongoingCharge = parseFloat(document.getElementById('ongoingCharge').value) / 100;
 
             let balance = totalInvestment;
-            let yearlyWithdrawal = drawdownType === 'percentage' ? totalInvestment * drawdownPercentage : annualWithdrawal;
+            let yearlyWithdrawal = drawdownType === 'percentage' ? balance * drawdownPercentage : annualWithdrawal;
             let years = 0;
+            let feesPaid = 0;
 
             let balances = [balance];
+            let fees = [0];
 
             while (balance > 0 && years < retirementYears) {
-                balance = (balance - yearlyWithdrawal) * (1 + expectedReturn);
+                let feeAmount = 0;
+                balance -= yearlyWithdrawal; // Withdrawal for the year
+                balance = balance * (1 + expectedReturn); // Apply return
+                
+                // Calculate fees
+                if (feeType === 'percentage') {
+                    feeAmount = balance * (accountFee / 100);
+                } else {
+                    feeAmount = accountFee; // Flat fee
+                }
+                feeAmount += balance * ongoingCharge; // Ongoing charges
+                feesPaid += feeAmount;
+
+                balance -= feeAmount; // Deduct fees from balance
+                balance = balance / (1 + inflationRate); // Adjust for inflation
+                
                 balances.push(balance);
+                fees.push(feesPaid);
+
                 years++;
                 if (drawdownType === 'percentage') yearlyWithdrawal = balance * drawdownPercentage;
             }
 
-            document.getElementById('result').innerHTML = balance >= 0
+            let resultText = balance >= 0
                 ? `Your investment will last for ${retirementYears} years with a final balance of ${currencySymbol}${balance.toFixed(2)}`
                 : `Your investment will run out in ${years} years, shortfall of ${currencySymbol}${Math.abs(balance).toFixed(2)}`;
+            resultText += `<br>Total Fees Paid: ${currencySymbol}${feesPaid.toFixed(2)}`;
+            document.getElementById('result').innerHTML = resultText;
 
-            updateChart(balances);
+            updateChart(balances, fees);
         }
 
-        function updateChart(balances) {
+        function updateChart(balances, fees) {
             const ctx = document.getElementById('drawdownChart').getContext('2d');
             if (window.myDrawdownChart) {
                 window.myDrawdownChart.destroy();
@@ -151,12 +191,21 @@
                 type: 'line',
                 data: {
                     labels: balances.map((_, i) => `Year ${i}`),
-                    datasets: [{
-                        label: 'Investment Balance',
-                        data: balances,
-                        borderColor: 'rgb(75, 192, 192)',
-                        tension: 0.1
-                    }]
+                    datasets: [
+                        {
+                            label: 'Investment Balance',
+                            data: balances,
+                            borderColor: 'rgb(75, 192, 192)',
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Total Fees Paid',
+                            data: fees,
+                            borderColor: 'rgb(255, 99, 132)',
+                            tension: 0.1,
+                            fill: false
+                        }
+                    ]
                 },
                 options: {
                     scales: {
@@ -168,7 +217,8 @@
             });
         }
 
-        // Initial adjustment for return rate based on portfolio
+        // Initial setup
+        toggleDrawdownInput();
         adjustReturnRate();
     </script>
 </body>
