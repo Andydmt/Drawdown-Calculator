@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Retirement Drawdown Calculator</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        h2 {
+            color: #333;
+        }
+        label {
+            margin-top: -10px;
+            display: block;
+            color: #666;
+        }
+        input, select, button {
+            width: 30%;
+            padding: 8px;
+            margin-top: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box; /* Ensures padding does not affect width */
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #result {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        canvas {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h2>Retirement Drawdown Calculator</h2>
+    
+    <label for="currency">Currency Symbol:</label>
+    <select id="currency">
+        <option value="$">$ (USD)</option>
+        <option value="£">£ (GBP)</option>
+        <option value="€">€ (EUR)</option>
+    </select><br><br>
+
+    <label for="totalInvestment">Total Investment Value:</label>
+    <input type="number" id="totalInvestment" value="100000"><br><br>
+    
+    <label for="drawdownType">Drawdown Type:</label>
+    <select id="drawdownType" onchange="toggleDrawdownInput()">
+        <option value="percentage">Percentage</option>
+        <option value="fixed">Fixed Amount</option>
+    </select><br><br>
+    
+    <div id="percentageInput">
+        <label for="drawdownPercentage">Annual Drawdown Percentage (%):</label>
+        <input type="number" id="drawdownPercentage" value="4"><br><br>
+    </div>
+    
+    <div id="fixedAmountInput" style="display:none;">
+        <label for="annualWithdrawal">Annual Withdrawal Amount:</label>
+        <input type="number" id="annualWithdrawal"><br><br>
+    </div>
+    
+    <label for="portfolio">Portfolio (Equity/Bond split):</label>
+    <select id="portfolio" onchange="adjustReturnRate()">
+        <option value="0.0726">100/0</option>
+        <option value="0.0678">80/20</option>
+        <option value="0.0627">60/40</option>
+        <option value="0.0558">40/60</option>
+        <option value="0.0473">20/80</option>
+        <option value="0.0373">0/100</option>
+    </select><br><br>
+    
+    <label for="expectedReturn">Expected Annual Return (%):</label>
+    <input type="number" id="expectedReturn" value="7.26"><br><br>
+    
+    <label for="retirementYears">Retirement Duration (Years):</label>
+    <input type="number" id="retirementYears" value="25"><br><br>
+    
+    <button onclick="calculateDrawdown()">Calculate Drawdown</button>
+    
+    <h3 id="result"></h3>
+    
+    <canvas id="drawdownChart" width="400" height="200"></canvas>
+    
+    <script>
+        function toggleDrawdownInput() {
+            const drawdownType = document.getElementById('drawdownType').value;
+            document.getElementById('percentageInput').style.display = drawdownType === 'percentage' ? 'block' : 'none';
+            document.getElementById('fixedAmountInput').style.display = drawdownType === 'fixed' ? 'block' : 'none';
+        }
+
+        function adjustReturnRate() {
+            const portfolio = document.getElementById('portfolio').value;
+            document.getElementById('expectedReturn').value = (parseFloat(portfolio) * 100).toFixed(2);
+        }
+
+        function calculateDrawdown() {
+            const currencySymbol = document.getElementById('currency').value;
+            const totalInvestment = parseFloat(document.getElementById('totalInvestment').value);
+            const drawdownType = document.getElementById('drawdownType').value;
+            const drawdownPercentage = parseFloat(document.getElementById('drawdownPercentage').value) / 100;
+            const annualWithdrawal = parseFloat(document.getElementById('annualWithdrawal').value || '0');
+            const expectedReturn = parseFloat(document.getElementById('expectedReturn').value) / 100;
+            const retirementYears = parseInt(document.getElementById('retirementYears').value);
+
+            let balance = totalInvestment;
+            let yearlyWithdrawal = drawdownType === 'percentage' ? totalInvestment * drawdownPercentage : annualWithdrawal;
+            let years = 0;
+
+            let balances = [balance];
+
+            while (balance > 0 && years < retirementYears) {
+                balance = (balance - yearlyWithdrawal) * (1 + expectedReturn);
+                balances.push(balance);
+                years++;
+                if (drawdownType === 'percentage') yearlyWithdrawal = balance * drawdownPercentage;
+            }
+
+            document.getElementById('result').innerHTML = balance >= 0
+                ? `Your investment will last for ${retirementYears} years with a final balance of ${currencySymbol}${balance.toFixed(2)}`
+                : `Your investment will run out in ${years} years, shortfall of ${currencySymbol}${Math.abs(balance).toFixed(2)}`;
+
+            updateChart(balances);
+        }
+
+        function updateChart(balances) {
+            const ctx = document.getElementById('drawdownChart').getContext('2d');
+            if (window.myDrawdownChart) {
+                window.myDrawdownChart.destroy();
+            }
+            window.myDrawdownChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: balances.map((_, i) => `Year ${i}`),
+                    datasets: [{
+                        label: 'Investment Balance',
+                        data: balances,
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initial adjustment for return rate based on portfolio
+        adjustReturnRate();
+    </script>
+</body>
+</html>
